@@ -1,9 +1,9 @@
 <?php
 /*
 Plugin Name: BatchCustomDerivatives
-Version: auto
+Version: 0.1.0
 Description: Adds batch action and web service to create custom derivatives
-Plugin URI: http://piwigo.org/ext/extension_view.php?eid=???
+Plugin URI: http://piwigo.org/ext/extension_view.php?eid=899
 Author: Scott Shambarger
 Author URI: http://github.com/sshambar/BatchCustomDerivatives
 */
