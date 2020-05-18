@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 
-my $name = "piwigo_deriv.pl";
-my $version = 0.1;
+my $name = 'piwigo_deriv.pl';
+my $version = 0.2;
 
 =begin comment
 
@@ -63,11 +63,11 @@ sub json_query($;%);
 sub get_ua;
 
 my %opt = ();
-Getopt::Long::Configure("bundling");
+Getopt::Long::Configure('bundling');
 GetOptions(
     \%opt,
     qw/
-          action|a=s
+          action|a=s@
           base_url|b=s
           basic_auth|x
           config|c=s
@@ -76,21 +76,21 @@ GetOptions(
           password|p=s
           sleep|s=f
           timeout|o=i
-          types|t=s
+          types|t=s@
           username|u=s
           verbose|v:+
       /
 );
 
 my %conf_default = (
-    action => '',
+    action => [],
     base_url => 'http://localhost/piwigo',
     basic_auth => 0,
     limit => 0,
     password => '',
     sleep => 0,
     timeout => 20,
-    types => '',
+    types => [],
     username => 'admin',
     verbose => 0,
     );
@@ -101,6 +101,8 @@ my %conf = %conf_default;
 if (defined $opt{'config'}) {
 
     open CONFIG, "$opt{'config'}" or die "Couldn't open the config '$opt{'config'}'. $!\n";
+    my @actions = ();
+    my @types = ();
     while (<CONFIG>) {
 	chomp;
 	s/^\s+|\s+$//g;
@@ -108,8 +110,14 @@ if (defined $opt{'config'}) {
 	my ($key, $val) = m/^([^=\s]+)\s*=\s*"(.*)"$/;
 	($key, $val) = m/^([^=\s]+)\s*=\s*(.*)$/ if ! defined($key);
 	next if ! (defined($key) && defined($conf_default{$key}));
-	$conf{$key} = $val;
+	for ($key) {
+	    /^action$/ && do { push @actions, $val; };
+	    /^types$/ && do { push @types, $val; };
+	    /.*/ && do { $conf{$key} = $val; };
+	}
     }
+    $conf{action} = \@actions if scalar @actions > 0;
+    $conf{types} = \@types if scalar @types > 0;
     close CONFIG;
 }
 
@@ -117,47 +125,53 @@ if (defined $opt{'config'}) {
 foreach my $conf_key (keys %conf_default) {
     $conf{$conf_key} = $opt{$conf_key} if defined $opt{$conf_key};
 }
+if (defined $conf{action}) {
+    my $actions = $conf{action};
+    $conf{action} = [ split /,/, join ',', @$actions ];
+}
+if (defined $conf{types}) {
+    my $types = $conf{types};
+    $conf{types} = [ split /,/, join ',', @$types ];
+}
+
 my $ws_url = $conf{base_url}.'/ws.php';
 
-my $match = 0;
-for (
-    "list_types",
-    "list_missing",
-    "gen_missing",
-    "list_custom_types",
-    "list_missing_custom",
-    "gen_missing_custom",
-    "test_login",
-    ) {
-    $match = 1 if $_ eq $conf{action};
+my %valid_actions = (
+    'gen_missing' => 'generate missing derivatives',
+    'gen_missing_custom' => 'generate missing custom derivatives',
+    'list_custom_types' => 'list valid custom derivative types',
+    'list_missing' => 'list urls of missing derivatives',
+    'list_missing_custom' => 'list urls of missing custom derivatives',
+    'list_types' => 'list valid derivative types',
+    'test_login' => 'test login'
+);
+my $actions = $conf{action};
+for (@$actions) {
+    if (! exists($valid_actions{$_})) {
+	error "Unrecognized action: $_";
+    }
 }
-if ($conf{action} and $match == 0) {
-    error "Unrecognized action: ".$conf{action};
-}
-undef $conf{types} if defined $conf{types} and $conf{types} eq 'all';
+my @actions = sort { $b cmp $a } @$actions;
 
 binmode STDOUT, ":encoding(utf-8)";
 
-if ($conf{action} eq "" or defined ($opt{help})) {
-    print "Piwigo Derivative Generator v".$version."\n";
-    print "Usage: ".$name." -a <action> [ <options> ]\n";
+if (scalar @actions == 0 or defined ($opt{help})) {
+    print "Piwigo Derivative Generator v$version\n";
+    print "Usage: $name -a <action>[,<action>] [ <options> ]\n";
     print "<options> may be:\n";
-    print "  -a or --action=<one-of...>\n";
-    print "    list_types - list valid derivative types\n";
-    print "    list_missing - list urls of missing derivatives\n";
-    print "    gen_missing - generate missing derivatives\n";
-    print "    list_custom_types - list valid custom derivative types\n";
-    print "    list_missing_custom - list urls of missing custom derivatives\n";
-    print "    gen_missing_custom - generate missing custom derivatives\n";
-    print "    test_login - test login, no other action\n";
-    print "  -u or --username=<login> - login name (default: ".$conf_default{username}.")\n";
+    print "  -a or --action=<from-list> (repeatable)\n";
+    for (sort keys %valid_actions) {
+	print "    $_ - $valid_actions{$_}\n";
+    }
+    print "  -u or --username=<login> - login name (default: $conf_default{username})\n";
     print "  -p or --password=<pass> - login password (default: <empty>)\n";
     print "  -x or --basic_auth - use HTTP Basic Auth in photo query\n";
     print "  -s or --sleep=<secs> - seconds to sleep between requests (fractions ok)\n";
     print "  -l or --limit=<#> - max number of urls to process (default: <no-limit>)\n";
-    print "  -b or --base_url=<url> - base url or site (default: ".$conf_default{base_url}.")\n";
+    print "  -b or --base_url=<url> - base url or site (default: $conf_default{base_url})\n";
     print "  -t or --types=<type>[,<type>] - derivative types to consider (default: <all>)\n";
-    print "  -o or --timeout=<secs> - HTTP timeout (default: ".$conf_default{timeout}.")\n";
+    print "  -o or --timeout=<secs> - HTTP timeout (default: $conf_default{timeout})\n";
+    print "  -v or --verbose - increase level of feedback (repeatable)\n";
     print "  -c or --config=<config-file> - file containing option=value lines\n";
     print "Config file requires long option names (no dashes, # start comments)\n";
     exit(1);
@@ -173,9 +187,14 @@ my %args = (
     password => $conf{password},
 );
 json_query "pwg.session.login", %args;
-print "Cookies after login: ".$ua->cookie_jar->as_string."\n" if $conf{verbose} > 1;
+print "Cookies after login: ".$ua->cookie_jar->as_string if $conf{verbose} > 2;
 
-for ($conf{action}) {
+my $list_total = 0;
+my $gen_total = 0;
+my $gen_failed = 0;
+
+for (@actions) {
+    print "\nPerforming action $_\n" if $conf{verbose} > 1;
     /^list_types$/ && do { 
 	list_types \&get_types;
     };
@@ -199,6 +218,11 @@ for ($conf{action}) {
     };
 }
 
+print "\n" if ($conf{verbose} == 1 and $gen_total);
+print "Total images processed: $gen_total\n"
+    if ($gen_total and ($conf{verbose} or $gen_failed));
+print "Total failures: $gen_failed\n" if $gen_failed;
+
 json_query 'pwg.session.logout';
 
 sub list_types($) {
@@ -215,16 +239,15 @@ sub list_missing_derivs($) {
     my $source = shift;
 
     my ($next, $urls);
-    my $total = 0;
     do {
 	$urls = &$source($conf{types}, $next);
 	foreach (@$urls) {
-	    print $_."\n";
-	    $total++;
-	    if ( $conf{limit} > 0 and $total >= $conf{limit} ) {
+	    if ( $conf{limit} > 0 and $list_total >= $conf{limit} ) {
 		undef $next;
 		last;
 	    }
+	    print $_."\n";
+	    $list_total++;
 	}
     } while($next);
 }
@@ -234,8 +257,6 @@ sub gen_missing_derivs($) {
     my $source = shift;
 
     my ($next, $urls, $response);
-    my $total = 0;
-    my $failed = 0;
     my $sleep = 0;
     my $sleep_debt = 0.0;
 
@@ -251,34 +272,33 @@ sub gen_missing_derivs($) {
     do {
 	$urls = &$source($conf{types}, $next);
 	foreach (@$urls) {
+	    if ( $conf{limit} > 0 and $gen_total >= $conf{limit} ) {
+		undef $next;
+		last;
+	    }
 	    if ($sleep_debt > 1.0) {
 		$sleep = floor($sleep_debt);
 		$sleep_debt -= $sleep;
 		sleep($sleep);
 	    }
-	    print "Generating derivatives:\n" if ($conf{verbose} and $total == 0);
-	    print "." if $conf{verbose} == 1;
-	    print $_."\n" if $conf{verbose} > 1;
+	    print "Generating derivatives:\n" if ($conf{verbose} and $gen_total == 0);
 	    $response = $cua->head($_);
 	    if($response->is_error) {
-		print STDERR "\nFailed: ".$_."\n";
-		print STDERR "  error: ".$response->message."\n";
+		print "E" if $conf{verbose} == 1;
+		print STDERR "\nERROR: ".$response->message.": $_\n"
+		    if ($gen_total == 0 or $conf{verbose} > 1);
 		# if we start with an error, bail
-		exit if $total == 0;
-		$failed++;
+		exit if $gen_total == 0;
+		$gen_failed++;
 	    }
-	    $total++;
+	    else {
+		print "." if $conf{verbose} == 1;
+		print "$_\n" if $conf{verbose} > 1;
+	    }
+	    $gen_total++;
 	    $sleep_debt += $conf{sleep};
-	    if ( $conf{limit} > 0 and $total >= $conf{limit} ) {
-		undef $next;
-		last;
-	    }
 	}
     } while($next);
-    print "\n" if ($conf{verbose} == 1 and $total != 0);
-    print "Total images processed: ".$total."\n"
-	if ($conf{verbose} or $failed != 0);
-    print "Total failures: ".$failed."\n" if $failed != 0;
 }
 
 sub get_types {
@@ -308,10 +328,7 @@ sub get_missing_derivs_urls($$$) {
 
     my %xargs = ();
 
-    if (defined $stypes) {
-	my @types = split /,/, $stypes;
-	$xargs{'types[]'} = \@types;
-    }
+    $xargs{'types[]'} = $stypes if defined $stypes;
     $xargs{prev_page} = $next if defined $next;
     my $result = json_query $api, %xargs;
     $_[0] = $result->{next_page};
@@ -326,25 +343,26 @@ sub error($) {
 sub json_query($;%) {
     my ($method, %form) = @_;
     $form{method} = $method;
+    print "API method $method\n" if $conf{verbose} > 2;
     my $response = $ua->post(
-	$ws_url."?format=json",
+	"${ws_url}?format=json",
 	\%form
 	);
-    error "Method ".$method." failed to '".$conf{base_url}."': ".$response->message if $response->is_error;
+    error "Method $method failed at '$conf{base_url}': ".$response->message if $response->is_error;
     my %content;
     eval {
 	%content = %{ JSON->new->utf8->decode($response->decoded_content) };
     };
-    error "Method ".$method." returned invalid response" if not %content;
-    error "Method ".$method." returned failure: ".$content{message} if $content{stat} ne "ok";
-    error "Method ".$method." has no results" if not defined $content{result};
+    error "Method $method returned invalid response" if not %content;
+    error "Method $method returned failure: $content{message}" if $content{stat} ne "ok";
+    error "Method $method has no results" if not defined $content{result};
     return $content{result};
 }
 
 sub get_ua {
     return LWP::UserAgent->new(
 	cookie_jar => {},
-	agent => 'Mozilla/'.$name.' '.$version,
+	agent => "Mozilla/$name $version",
 	timeout => $conf{timeout},
 	);
 }

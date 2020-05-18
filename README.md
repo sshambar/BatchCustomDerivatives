@@ -46,16 +46,16 @@ options to control the speed and number of derivatives generated.
 
 ```
 Piwigo Derivative Generator
-Usage: piwigo_deriv.pl -a <action> [ <options> ]
+Usage: piwigo_deriv.pl -a <action>[,<action>] [ <options> ]
 <options> may be:
-  -a or --action=<one-of...>
-    list_types - list valid derivative types
-    list_missing - list urls of missing derivatives
+  -a or --action=<from-list> (repeatable)
     gen_missing - generate missing derivatives
-    list_custom_types - list valid custom derivative types
-    list_missing_custom - list urls of missing custom derivatives
     gen_missing_custom - generate missing custom derivatives
-    test_login - test login, no other action
+    list_custom_types - list valid custom derivative types
+    list_missing - list urls of missing derivatives
+    list_missing_custom - list urls of missing custom derivatives
+    list_types - list valid derivative types
+    test_login - test login
   -u or --username=<login> - login name (default: admin)
   -p or --password=<pass> - login password (default: <empty>)
   -x or --basic_auth - use HTTP Basic Auth in photo query
@@ -64,6 +64,7 @@ Usage: piwigo_deriv.pl -a <action> [ <options> ]
   -b or --base_url=<url> - base url or site (default: http://localhost/piwigo)
   -t or --types=<type>[,<type>] - derivative types to consider (default: <all>)
   -o or --timeout=<secs> - HTTP timeout (default: 20)
+  -v or --verbose - increase level of feedback (repeatable)
   -c or --config=<config-file> - file containing option=value lines
 Config file requires long option names (no dashes, # start comments)
 ```
