@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 
 my $name = 'piwigo_deriv.pl';
-my $version = 0.2;
+my $version = 0.3;
 
 =begin comment
 
@@ -262,6 +262,9 @@ sub gen_missing_derivs($) {
 
     # url query agent
     my $cua = get_ua;
+    # ignore redirects for orig smaller than deriv
+    $cua->max_redirect( 0 );
+
     if ($conf{basic_auth}) {
 	$cua->default_headers->authorization_basic(
 	    $conf{username},
