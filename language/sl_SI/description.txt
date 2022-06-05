@@ -1,0 +1,2 @@
+Doda dejanje Photo Batch Manager, da ustvarite registrirano po meri
+izpeljane slike.
