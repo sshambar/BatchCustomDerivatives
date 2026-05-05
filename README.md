@@ -31,6 +31,7 @@ images directly from the command line (or as a background cron job).
 * **Tool Name**: ``piwigo_deriv.pl``
 * **Description**: Queries list of or generates missing image derivatives and types
 * **Requires**: perl modules Getopt::Long, JSON and LWP::UserAgent
+  (LWP::Protocol::https if using https)
 
 This tool can be used directly or as a background task (from cron)
 to pre-generate missing image derivatives in a Piwigo gallery.
